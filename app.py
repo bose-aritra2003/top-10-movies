@@ -5,14 +5,15 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import InputRequired
 import requests
+import os
 
 app = Flask(__name__)
 Bootstrap(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///top10movies.db"
 db = SQLAlchemy(app)
 
+MOVIE_DB_API_KEY = os.environ.get("TMDB_API_KEY")
 MOVIE_DB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
-MOVIE_DB_API_KEY = "12345"
 
 
 class Movie(db.Model):
@@ -90,7 +91,13 @@ def add_movie():
 
     if form.validate_on_submit():
         movie_title = form.title.data
-        response = requests.get(MOVIE_DB_SEARCH_URL, params={"api_key": MOVIE_DB_API_KEY, "query": movie_title})
+        response = requests.get(
+            MOVIE_DB_SEARCH_URL,
+            params={
+                "api_key": MOVIE_DB_API_KEY,
+                "query": movie_title
+            }
+        )
         data = response.json()["results"]
         return render_template("select.html", options=data)
 

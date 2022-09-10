@@ -9,11 +9,14 @@ import os
 
 app = Flask(__name__)
 Bootstrap(app)
+app.config['SECRET_KEY'] = os.environ.get('CSRF_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///top10movies.db"
 db = SQLAlchemy(app)
 
 MOVIE_DB_API_KEY = os.environ.get("TMDB_API_KEY")
 MOVIE_DB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
+MOVIE_DB_INFO_URL = "https://api.themoviedb.org/3/movie"
+MOVIE_DB_IMAGE_URL = "https://image.tmdb.org/t/p/w500"
 
 
 class Movie(db.Model):
@@ -30,7 +33,7 @@ class Movie(db.Model):
 db.create_all()
 
 
-class EditForm(FlaskForm):
+class RateForm(FlaskForm):
     rating = StringField(
         'Your Rating Out of 10 e.g. 7.5',
         validators=[InputRequired()]
@@ -56,13 +59,16 @@ class FindForm(FlaskForm):
 
 @app.route("/")
 def home():
-    all_movies = Movie.query.all()
+    all_movies = Movie.query.order_by(Movie.rating).all()
+    for i in range(len(all_movies)):
+        all_movies[i].ranking = len(all_movies) - i
+    db.session.commit()
     return render_template("index.html", movies=all_movies)
 
 
 @app.route("/edit", methods=["GET", "POST"])
 def edit():
-    edit_form = EditForm()
+    edit_form = RateForm()
     movie_id = request.args.get('id')
 
     if edit_form.validate_on_submit():
@@ -86,7 +92,7 @@ def delete():
 
 
 @app.route("/add", methods=["GET", "POST"])
-def add_movie():
+def add():
     form = FindForm()
 
     if form.validate_on_submit():
@@ -102,6 +108,37 @@ def add_movie():
         return render_template("select.html", options=data)
 
     return render_template("add.html", form=form)
+
+
+@app.route("/find")
+def find():
+    movie_api_id = request.args.get("id")
+    if movie_api_id:
+        movie_api_url = f"{MOVIE_DB_INFO_URL}/{movie_api_id}"
+        response = requests.get(movie_api_url, params={"api_key": MOVIE_DB_API_KEY, "language": "en-US"})
+        data = response.json()
+        new_movie = Movie(
+            title=data["title"],
+            year=data["release_date"].split("-")[0],
+            img_url=f"{MOVIE_DB_IMAGE_URL}{data['poster_path']}",
+            description=data["overview"]
+        )
+        db.session.add(new_movie)
+        db.session.commit()
+        return redirect(url_for("rate", id=new_movie.id))
+
+
+@app.route("/edit", methods=["GET", "POST"])
+def rate():
+    rate_form = RateForm()
+    movie_id = request.args.get("id")
+    movie = Movie.query.get(movie_id)
+    if rate_form.validate_on_submit():
+        movie.rating = float(rate_form.rating.data)
+        movie.review = rate_form.review.data
+        db.session.commit()
+        return redirect(url_for('home'))
+    return render_template("edit.html", movie=movie, form=rate_form)
 
 
 if __name__ == '__main__':

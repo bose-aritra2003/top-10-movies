@@ -7,7 +7,6 @@ from wtforms.validators import InputRequired
 import requests
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'any-string-you-want-just-keep-it-secret'
 Bootstrap(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///top10movies.db"
 db = SQLAlchemy(app)
